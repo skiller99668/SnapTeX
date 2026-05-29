@@ -1,8 +1,7 @@
-// background.js — Service Worker (central hub)
+// background.js - Service Worker
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-
-  // ── Capture the visible tab (used by content.js during scroll) ────
+  // 1. Handles the raw image capture from the visible tab
   if (msg.action === 'captureVisibleTab') {
     chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
       if (chrome.runtime.lastError) {
@@ -11,46 +10,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ dataUrl });
       }
     });
-    return true;
+    return true; // Keep message channel open for async response
   }
 
-  // ── Full-page done: download from background (popup may be closed) ─
-  if (msg.action === 'fullPageDone') {
-    chrome.downloads.download({
-      url: msg.dataUrl,
-      filename: 'screenshot-fullpage.png',
-      saveAs: false
-    });
-    sendResponse({ ok: true });
-    return true;
-  }
-
-  // ── Region done: download from background ─────────────────────────
-  if (msg.action === 'regionDone') {
-    chrome.downloads.download({
-      url: msg.dataUrl,
-      filename: 'screenshot-region.png',
-      saveAs: false
-    });
-    sendResponse({ ok: true });
-    return true;
-  }
-
-  // ── Visible screenshot: capture + download immediately ────────────
-  if (msg.action === 'captureAndDownload') {
-    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({ error: chrome.runtime.lastError.message });
-        return;
-      }
-      chrome.downloads.download({
-        url: dataUrl,
-        filename: 'screenshot-visible.png',
-        saveAs: false
+  // 2. Receives the final sliced/stitched dataUrl from content.js and saves to bag
+  if (msg.action === 'regionCaptureDone') {
+    chrome.storage.local.get({ bag: [] }, (result) => {
+      const updatedBag = result.bag;
+      updatedBag.push(msg.dataUrl);
+      chrome.storage.local.set({ bag: updatedBag }, () => {
+        sendResponse({ ok: true });
       });
-      sendResponse({ ok: true });
     });
-    return true;
+    return true; // Keep message channel open for async response
   }
-
 });

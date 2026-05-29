@@ -1,64 +1,156 @@
-// popup.js — fixed version
+// popup.js - Bag screenshot manager
 
-function showToast(msg, color = '#22c55e') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.background = color;
-  t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 2800);
-}
+let bag = []; // Local mirror of storage array
 
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
 
-// ── Visible screenshot ──────────────────────────────────────────────
-document.getElementById('btn-visible').addEventListener('click', async () => {
-  showToast('📸 Capturing…', '#7c6af7');
-  chrome.runtime.sendMessage({ action: 'captureAndDownload' }, (res) => {
-    if (chrome.runtime.lastError || res?.error) {
-      showToast('Error — reload the page & retry', '#ef4444');
-    } else {
-      showToast('✓ Saved to Downloads!');
+// ─── STORAGE SYNCING ─────────────────────────────────────────────
+
+function loadBag() {
+  chrome.storage.local.get({ bag: [] }, (result) => {
+    bag = result.bag;
+    updateBagUI();
+  });
+}
+
+function saveBag() {
+  chrome.storage.local.set({ bag });
+}
+
+// ─── UI UPDATER ──────────────────────────────────────────────────
+
+function updateBagUI() {
+  const count = document.getElementById('bag-count');
+  const thumbnails = document.getElementById('thumbnails');
+  const dlBtn = document.getElementById('btn-download-bag');
+  const pasteBtn = document.getElementById('btn-paste-bag');
+  const clrBtn = document.getElementById('btn-clear-bag');
+  
+  count.textContent = `${bag.length} screenshot${bag.length !== 1 ? 's' : ''}`;
+  dlBtn.disabled = bag.length === 0;
+  pasteBtn.disabled = bag.length === 0;
+  clrBtn.disabled = bag.length === 0;
+  
+  thumbnails.innerHTML = '';
+  bag.forEach((dataUrl, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'thumbnail';
+    thumb.innerHTML = `<img src="${dataUrl}">`;
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete';
+    deleteBtn.textContent = '✕';
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      bag.splice(idx, 1);
+      saveBag();
+      updateBagUI();
+    });
+    thumb.appendChild(deleteBtn);
+    thumbnails.appendChild(thumb);
+  });
+}
+
+function stitchScreenshots() {
+  return new Promise((resolve) => {
+    const images = bag.map(url => {
+      const img = new Image();
+      img.src = url;
+      return img;
+    });
+    
+    let loaded = 0;
+    images.forEach(img => {
+      img.onload = () => {
+        loaded++;
+        if (loaded === images.length) {
+          const width = images[0].width;
+          const totalHeight = images.reduce((sum, img) => sum + img.height, 0);
+          
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = totalHeight;
+          const ctx = canvas.getContext('2d');
+          
+          let y = 0;
+          images.forEach(img => {
+            ctx.drawImage(img, 0, y);
+            y += img.height;
+          });
+          
+          resolve(canvas.toDataURL('image/png'));
+        }
+      };
+    });
+  });
+}
+
+// ─── EVENT LISTENERS ─────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadBag();
+
+  // Listen for background updates (just in case the popup happens to be open)
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.bag) {
+      bag = changes.bag.newValue || [];
+      updateBagUI();
     }
   });
-});
 
-// ── Full page screenshot ────────────────────────────────────────────
-document.getElementById('btn-fullpage').addEventListener('click', async () => {
-  const tab = await getActiveTab();
-  try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
-  } catch (e) {}
+  // Select Region
+  document.getElementById('btn-region').addEventListener('click', async () => {
+    const tab = await getActiveTab();
+    try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
+    chrome.tabs.sendMessage(tab.id, { action: 'startRegionSelect' });
+    window.close(); // Close the popup immediately to allow selection
+  });
 
-  showToast('📸 Capturing full page…', '#7c6af7');
-  chrome.tabs.sendMessage(tab.id, { action: 'startFullPageCapture' }, (res) => {
-    if (chrome.runtime.lastError) {
-      showToast('Refresh the page & retry', '#ef4444');
+  // Full Page
+  document.getElementById('btn-fullpage').addEventListener('click', async () => {
+    const tab = await getActiveTab();
+    try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
+    chrome.tabs.sendMessage(tab.id, { action: 'startFullPageCapture' });
+    window.close(); // Close popup so it doesn't block the scrolling viewport
+  });
+
+  // Download Bag
+  document.getElementById('btn-download-bag').addEventListener('click', async () => {
+    const dataUrl = await stitchScreenshots();
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `screenshot-bag-${Date.now()}.png`;
+    link.click();
+  });
+
+  // Paste Bag
+  document.getElementById('btn-paste-bag').addEventListener('click', async () => {
+    const dataUrl = await stitchScreenshots();
+    const blob = await (await fetch(dataUrl)).blob();
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      const btn = document.getElementById('btn-paste-bag');
+      const origText = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = origText, 2000);
+    } catch (e) {
+      alert('Failed to copy to clipboard: ' + e.message);
     }
   });
-});
 
-// ── Region select ───────────────────────────────────────────────────
-document.getElementById('btn-region').addEventListener('click', async () => {
-  const tab = await getActiveTab();
-  try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
-  } catch (e) {}
-
-  chrome.tabs.sendMessage(tab.id, { action: 'startRegionSelect' }, (res) => {
-    if (chrome.runtime.lastError) {
-      showToast('Refresh the page & retry', '#ef4444');
-      return;
-    }
-    showToast('Draw a region on the page', '#7c6af7');
-    setTimeout(() => window.close(), 800);
+  // Clear Bag
+  document.getElementById('btn-clear-bag').addEventListener('click', () => {
+    bag = [];
+    saveBag();
+    updateBagUI();
   });
-});
 
-// ── Equation converter ──────────────────────────────────────────────
-document.getElementById('btn-equation').addEventListener('click', () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('index.html') });
-  window.close();
+  // Equation Converter
+  document.getElementById('btn-equation').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('equation.html') });
+  });
 });
