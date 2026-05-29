@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Equation Converter</title>
+
+  <!--
+    MathJax renders LaTeX into a visual preview.
+    We load it from a CDN so no install needed.
+  -->
+  <script src="mathjax.js" async></script>
+
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #0f0f14;
+      color: #e0e0e8;
+    }
+
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    p.sub { color: #666; font-size: 12px; margin-bottom: 28px; }
+
+    label { display: block; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+
+    textarea {
+      width: 100%;
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      color: #e0e0e8;
+      font-family: monospace;
+      font-size: 14px;
+      padding: 12px;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    textarea:focus { border-color: #7c6af7; }
+
+    /* Preview box — MathJax renders into here */
+    #preview {
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 18px;
+      margin: 14px 0;
+      min-height: 60px;
+      text-align: center;
+      font-size: 22px;
+      color: #e0e0e8;
+    }
+
+    .output-label {
+      font-size: 10px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin: 14px 0 5px;
+    }
+
+    .output-box {
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      cursor: pointer;
+      position: relative;
+      min-height: 40px;
+      word-break: break-word;
+      transition: border-color .15s;
+    }
+    .output-box:hover { border-color: #7c6af7; }
+    .output-box::after {
+      content: 'click to copy';
+      position: absolute;
+      top: 8px; right: 10px;
+      font-size: 10px;
+      color: #444;
+    }
+    .output-box.copied { border-color: #22c55e; }
+    .output-box.copied::after { content: '✓ copied'; color: #22c55e; }
+
+    button {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: #7c6af7;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-family: monospace;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #8b7cf8; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+    .chip {
+      padding: 5px 11px;
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 20px;
+      font-size: 11px;
+      color: #666;
+      cursor: pointer;
+    }
+    .chip:hover { border-color: #7c6af7; color: #a78bfa; }
+  </style>
+</head>
+<body>
+
+<h1>Equation Converter</h1>
+<p class="sub">LaTeX → Unicode you can paste into Google Docs or Word</p>
+
+<label>LaTeX input</label>
+<textarea id="input" placeholder="e.g.  \frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
+
+<button id="btn-convert">Convert →</button>
+
+<br><br>
+<label>Live preview</label>
+<div id="preview" style="color:#444">Type something above…</div>
+
+<div class="output-label">Unicode — paste anywhere (Docs, Word, Slack…)</div>
+<div class="output-box" id="out-unicode">—</div>
+
+<div class="output-label">Clean LaTeX — paste into Google Docs equation editor</div>
+<div class="output-box" id="out-clean">—</div>
+
+<!-- Quick examples to click -->
+<div class="chips" id="chips"></div>
+
+<script src="converterlogic.js"></script>
+</body>
+</html>

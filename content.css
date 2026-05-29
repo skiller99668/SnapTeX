@@ -1,0 +1,8 @@
+/* content.css — SnapTeX injected styles */
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+
+#__snaptex_progress,
+#__snaptex_region_overlay {
+  /* Ensure our elements are always on top */
+  isolation: isolate;
+}

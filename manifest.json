@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "SnapTeX — Screenshot & Equation Tool",
+  "version": "1.0.0",
+  "description": "Full-page scrollable screenshots and equation-to-text converter for Google Docs & Word.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["overlay.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
