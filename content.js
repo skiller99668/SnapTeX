@@ -1,210 +1,161 @@
-// content.js — injected into every page
+// content.js - Injected into every tab
+// Guard: only register listener once, even if injected multiple times.
+// Everything lives inside the `if` block so there's no invalid top-level return.
+if (!window.__snaptexLoaded) {
+  window.__snaptexLoaded = true;
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.action === 'startFullPageCapture') {
-    captureFullPage();
-    sendResponse({ ok: true });
-  }
-  if (msg.action === 'startRegionSelect') {
-    startRegionSelect();
-    sendResponse({ ok: true });
-  }
-});
+  // Fire-and-forget listener — no sendResponse, so no "channel closed" warnings
+  chrome.runtime.onMessage.addListener(function(msg) {
+    if (msg.action === 'startRegionSelect') startRegionSelect();
+    if (msg.action === 'startFullPageCapture') captureFullPage();
+  });
 
-// ══════════════════════════════════════════════════════════════
-//  FULL-PAGE SCROLLABLE SCREENSHOT
-// ══════════════════════════════════════════════════════════════
-async function captureFullPage() {
-  const originalScrollX = window.scrollX;
-  const originalScrollY = window.scrollY;
-  const totalHeight = document.documentElement.scrollHeight;
-  const totalWidth  = document.documentElement.scrollWidth;
-  const viewportH   = window.innerHeight;
-  const viewportW   = window.innerWidth;
+  // ════════════════════════════════════════════════════════════
+  //  REGION SELECT
+  // ════════════════════════════════════════════════════════════
+  function startRegionSelect() {
+    if (document.getElementById('__snaptex_overlay')) return;
 
-  const canvas = document.createElement('canvas');
-  canvas.width  = totalWidth;
-  canvas.height = totalHeight;
-  const ctx = canvas.getContext('2d');
+    var overlay = document.createElement('div');
+    overlay.id = '__snaptex_overlay';
+    overlay.style.cssText =
+      'position:fixed;top:0;left:0;width:100vw;height:100vh;' +
+      'z-index:2147483646;cursor:crosshair;background:rgba(10,10,15,0.4);';
 
-  const steps = Math.ceil(totalHeight / viewportH);
+    var hint = document.createElement('div');
+    hint.style.cssText =
+      'position:fixed;top:20px;left:50%;transform:translateX(-50%);' +
+      'background:rgba(10,10,15,0.9);color:#e0e0e8;font-family:monospace;' +
+      'font-size:12px;padding:8px 16px;border-radius:8px;' +
+      'border:1px solid rgba(124,106,247,0.5);pointer-events:none;z-index:2147483647;';
+    hint.textContent = 'Drag to select region · ESC to cancel';
 
-  // Show progress overlay
-  const overlay = createProgressOverlay(steps);
-  document.body.appendChild(overlay);
+    var dpr = window.devicePixelRatio || 1;
+    var startX, startY, box;
 
-  window.scrollTo(0, 0);
-  await sleep(300);
-
-  for (let i = 0; i < steps; i++) {
-    const scrollY = i * viewportH;
-    window.scrollTo(0, scrollY);
-    await sleep(250);
-
-    const dataUrl = await captureVisible();
-    const img = await loadImage(dataUrl);
-
-    const drawY = scrollY;
-    const drawH = Math.min(viewportH, totalHeight - scrollY);
-
-    ctx.drawImage(img, 0, 0, viewportW, drawH, 0, drawY, viewportW, drawH);
-
-    updateProgress(overlay, i + 1, steps);
-  }
-
-  // Restore scroll
-  window.scrollTo(originalScrollX, originalScrollY);
-  document.body.removeChild(overlay);
-
-  const finalDataUrl = canvas.toDataURL('image/png');
-  chrome.runtime.sendMessage({ action: 'fullPageDone', dataUrl: finalDataUrl });
-}
-
-function captureVisible() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'captureVisibleTab' }, (res) => {
-      if (res.error) reject(res.error);
-      else resolve(res.dataUrl);
+    overlay.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      startX = e.clientX;
+      startY = e.clientY;
+      box = document.createElement('div');
+      box.style.cssText =
+        'position:fixed;border:2px solid #7c6af7;' +
+        'background:rgba(124,106,247,0.1);pointer-events:none;z-index:2147483647;';
+      document.body.appendChild(box);
     });
-  });
-}
 
-function loadImage(dataUrl) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.src = dataUrl;
-  });
-}
+    overlay.addEventListener('mousemove', function(e) {
+      if (!box) return;
+      var x = Math.min(e.clientX, startX);
+      var y = Math.min(e.clientY, startY);
+      var w = Math.abs(e.clientX - startX);
+      var h = Math.abs(e.clientY - startY);
+      box.style.left = x + 'px';
+      box.style.top = y + 'px';
+      box.style.width = w + 'px';
+      box.style.height = h + 'px';
+    });
 
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
+    overlay.addEventListener('mouseup', function(e) {
+      if (!box) return;
+      var x = Math.min(e.clientX, startX);
+      var y = Math.min(e.clientY, startY);
+      var w = Math.abs(e.clientX - startX);
+      var h = Math.abs(e.clientY - startY);
 
-function createProgressOverlay(steps) {
-  const el = document.createElement('div');
-  el.id = '__snaptex_progress';
-  el.innerHTML = `
-    <div style="
-      position:fixed; top:20px; right:20px; z-index:2147483647;
-      background: rgba(10,10,15,0.92); backdrop-filter:blur(12px);
-      border: 1px solid rgba(124,106,247,0.4);
-      border-radius: 12px; padding: 14px 18px;
-      font-family: 'DM Mono', monospace; color: #e8e8f0;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-      min-width: 200px;
-    ">
-      <div style="font-size:11px; color:#7c6af7; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">SnapTeX</div>
-      <div style="font-size:13px; margin-bottom:10px;" id="__snaptex_msg">Capturing page…</div>
-      <div style="background:#1e1e2e; border-radius:4px; height:4px; overflow:hidden;">
-        <div id="__snaptex_bar" style="height:100%; background: linear-gradient(90deg,#6d59e8,#7c6af7); width:0%; transition:width 0.2s ease; border-radius:4px;"></div>
-      </div>
-    </div>
-  `;
-  return el;
-}
+      if (w < 5 || h < 5) { cleanup(); return; }
 
-function updateProgress(overlay, current, total) {
-  const pct = Math.round((current / total) * 100);
-  const bar = overlay.querySelector('#__snaptex_bar');
-  const msg = overlay.querySelector('#__snaptex_msg');
-  if (bar) bar.style.width = pct + '%';
-  if (msg) msg.textContent = `Step ${current} / ${total}`;
-}
+      // Hide UI before capture so it doesn't tint the screenshot
+      overlay.style.display = 'none';
+      box.style.display = 'none';
+      hint.style.display = 'none';
 
-// ══════════════════════════════════════════════════════════════
-//  REGION SELECT
-// ══════════════════════════════════════════════════════════════
-function startRegionSelect() {
-  // Prevent double overlay
-  if (document.getElementById('__snaptex_region_overlay')) return;
+      setTimeout(function() {
+        chrome.runtime.sendMessage({ action: 'captureVisibleTab' }, function(res) {
+          cleanup();
+          if (!res || res.error || !res.dataUrl) return;
+          var img = new Image();
+          img.onload = function() {
+            var canvas = document.createElement('canvas');
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, x * dpr, y * dpr, w * dpr, h * dpr, 0, 0, w * dpr, h * dpr);
+            chrome.runtime.sendMessage({ action: 'addToBag', dataUrl: canvas.toDataURL('image/png') });
+          };
+          img.src = res.dataUrl;
+        });
+      }, 150);
+    });
 
-  const overlay = document.createElement('div');
-  overlay.id = '__snaptex_region_overlay';
-  overlay.style.cssText = `
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    z-index: 2147483646; cursor: crosshair;
-    background: rgba(10,10,15,0.35);
-  `;
+    function onEsc(e) {
+      if (e.key === 'Escape') { cleanup(); document.removeEventListener('keydown', onEsc); }
+    }
+    document.addEventListener('keydown', onEsc);
 
-  const hint = document.createElement('div');
-  hint.style.cssText = `
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-    background: rgba(10,10,15,0.9); color: #e8e8f0;
-    font-family: 'DM Mono', monospace; font-size: 12px;
-    padding: 8px 16px; border-radius: 8px;
-    border: 1px solid rgba(124,106,247,0.4);
-    pointer-events: none; z-index: 2147483647;
-  `;
-  hint.textContent = 'Drag to select region · ESC to cancel';
-  document.body.appendChild(hint);
+    function cleanup() {
+      if (box && box.parentNode) box.parentNode.removeChild(box);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (hint.parentNode) hint.parentNode.removeChild(hint);
+      box = null;
+    }
 
-  let startX, startY, box;
-
-  overlay.addEventListener('mousedown', (e) => {
-    startX = e.clientX;
-    startY = e.clientY;
-
-    box = document.createElement('div');
-    box.style.cssText = `
-      position: fixed; border: 2px solid #7c6af7;
-      background: rgba(124,106,247,0.1);
-      pointer-events: none; z-index: 2147483647;
-    `;
-    document.body.appendChild(box);
-  });
-
-  overlay.addEventListener('mousemove', (e) => {
-    if (!box) return;
-    const x = Math.min(e.clientX, startX);
-    const y = Math.min(e.clientY, startY);
-    const w = Math.abs(e.clientX - startX);
-    const h = Math.abs(e.clientY - startY);
-    box.style.left   = x + 'px';
-    box.style.top    = y + 'px';
-    box.style.width  = w + 'px';
-    box.style.height = h + 'px';
-  });
-
-  overlay.addEventListener('mouseup', async (e) => {
-    if (!box) return;
-    const x = Math.min(e.clientX, startX);
-    const y = Math.min(e.clientY, startY);
-    const w = Math.abs(e.clientX - startX);
-    const h = Math.abs(e.clientY - startY);
-
-    cleanup();
-
-    if (w < 5 || h < 5) return;
-
-    await sleep(100);
-    const dataUrl = await captureVisible();
-    const img = await loadImage(dataUrl);
-
-    const dpr = window.devicePixelRatio || 1;
-    const canvas = document.createElement('canvas');
-    canvas.width  = w * dpr;
-    canvas.height = h * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, x * dpr, y * dpr, w * dpr, h * dpr, 0, 0, w * dpr, h * dpr);
-
-    const cropped = canvas.toDataURL('image/png');
-    chrome.runtime.sendMessage({ action: 'regionDone', dataUrl: cropped });
-  });
-
-  document.addEventListener('keydown', escHandler);
-
-  function escHandler(e) {
-    if (e.key === 'Escape') cleanup();
+    document.body.appendChild(hint);
+    document.body.appendChild(overlay);
   }
 
-  function cleanup() {
-    if (box && box.parentNode) box.parentNode.removeChild(box);
-    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    if (hint.parentNode) hint.parentNode.removeChild(hint);
-    document.removeEventListener('keydown', escHandler);
-    box = null;
+  // ════════════════════════════════════════════════════════════
+  //  FULL PAGE CAPTURE
+  // ════════════════════════════════════════════════════════════
+  function captureFullPage() {
+    var origX = window.scrollX;
+    var origY = window.scrollY;
+    var totalH = document.documentElement.scrollHeight;
+    var totalW = document.documentElement.scrollWidth;
+    var viewH = window.innerHeight;
+    var viewW = window.innerWidth;
+    var dpr = window.devicePixelRatio || 1;
+    var steps = Math.ceil(totalH / viewH);
+
+    var canvas = document.createElement('canvas');
+    canvas.width = totalW * dpr;
+    canvas.height = totalH * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    window.scrollTo(0, 0);
+
+    setTimeout(function() {
+      var i = 0;
+      function doStep() {
+        if (i >= steps) {
+          window.scrollTo(origX, origY);
+          chrome.runtime.sendMessage({ action: 'addToBag', dataUrl: canvas.toDataURL('image/png') });
+          return;
+        }
+        var scrollY = i * viewH;
+        window.scrollTo(0, scrollY);
+        setTimeout(function() {
+          chrome.runtime.sendMessage({ action: 'captureVisibleTab' }, function(res) {
+            if (res && res.dataUrl) {
+              var img = new Image();
+              img.onload = function() {
+                var drawH = Math.min(viewH, totalH - scrollY) * dpr;
+                ctx.drawImage(img, 0, 0, viewW * dpr, drawH, 0, scrollY * dpr, viewW * dpr, drawH);
+                i++;
+                setTimeout(doStep, 100);
+              };
+              img.src = res.dataUrl;
+            } else {
+              i++;
+              setTimeout(doStep, 100);
+            }
+          });
+        }, 250);
+      }
+      doStep();
+    }, 300);
   }
 
-  document.body.appendChild(overlay);
-}
+} // end guard

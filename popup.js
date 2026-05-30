@@ -1,143 +1,155 @@
-// popup.js - Bag screenshot manager
+// popup.js - Bag UI, loads from chrome.storage.session via background
 
-let bag = []; // Store screenshots as data URLs
+// ── Stitch all screenshots into one tall PNG, black-fill for width gaps ──
+function stitchImages(images) {
+  const maxW = Math.max(...images.map(img => img.naturalWidth));
+  const totalH = images.reduce((sum, img) => sum + img.naturalHeight, 0);
 
-async function getActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab;
+  const canvas = document.createElement('canvas');
+  canvas.width = maxW;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+
+  // Black background fills any width gaps
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, maxW, totalH);
+
+  let y = 0;
+  images.forEach(img => {
+    ctx.drawImage(img, 0, y);
+    y += img.naturalHeight;
+  });
+
+  return canvas.toDataURL('image/png');
 }
 
-function updateBagUI() {
+function loadImages(dataUrls) {
+  return Promise.all(dataUrls.map(url => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.src = url;
+  })));
+}
+
+// ── Load bag from background and re-render ──
+function loadBag() {
+  chrome.runtime.sendMessage({ action: 'getBag' }, ({ bag }) => {
+    renderBag(bag);
+  });
+}
+
+function renderBag(bag) {
   const count = document.getElementById('bag-count');
   const thumbnails = document.getElementById('thumbnails');
   const dlBtn = document.getElementById('btn-download-bag');
   const pasteBtn = document.getElementById('btn-paste-bag');
   const clrBtn = document.getElementById('btn-clear-bag');
-  
+
   count.textContent = `${bag.length} screenshot${bag.length !== 1 ? 's' : ''}`;
   dlBtn.disabled = bag.length === 0;
   pasteBtn.disabled = bag.length === 0;
   clrBtn.disabled = bag.length === 0;
-  
+
   thumbnails.innerHTML = '';
   bag.forEach((dataUrl, idx) => {
     const thumb = document.createElement('div');
     thumb.className = 'thumbnail';
-    thumb.innerHTML = `<img src="${dataUrl}">`;
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'delete';
-    deleteBtn.textContent = '✕';
-    deleteBtn.addEventListener('click', (e) => {
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    thumb.appendChild(img);
+
+    const del = document.createElement('button');
+    del.className = 'delete';
+    del.textContent = '✕';
+    del.addEventListener('click', (e) => {
       e.stopPropagation();
-      bag.splice(idx, 1);
-      updateBagUI();
+      chrome.runtime.sendMessage({ action: 'removeFromBag', index: idx }, loadBag);
     });
-    thumb.appendChild(deleteBtn);
+    thumb.appendChild(del);
     thumbnails.appendChild(thumb);
   });
 }
 
-function stitchScreenshots() {
-  return new Promise((resolve) => {
-    const images = bag.map(url => {
-      const img = new Image();
-      img.src = url;
-      return img;
-    });
-    
-    let loaded = 0;
-    images.forEach(img => {
-      img.onload = () => {
-        loaded++;
-        if (loaded === images.length) {
-          // All loaded — stitch them
-          const width = images[0].width;
-          const totalHeight = images.reduce((sum, img) => sum + img.height, 0);
-          
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = totalHeight;
-          const ctx = canvas.getContext('2d');
-          
-          let y = 0;
-          images.forEach(img => {
-            ctx.drawImage(img, 0, y);
-            y += img.height;
-          });
-          
-          resolve(canvas.toDataURL('image/png'));
-        }
-      };
-    });
-  });
-}
-
-// Listen for screenshots from content.js
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.action === 'regionCaptureDone') {
-    bag.push(msg.dataUrl);
-    updateBagUI();
-    sendResponse({ ok: true });
-  }
+// ── Listen for bag updates from background ──
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === 'bagUpdated') loadBag();
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Select Region
+
+  // Load bag on open
+  loadBag();
+
+  function isInjectable(url) {
+    return url && /^(https?|file):/.test(url);
+  }
+
+  function notifyBadPage() {
+    const countEl = document.getElementById('bag-count');
+    countEl.textContent = "Can't capture this page";
+    countEl.style.color = '#ef4444';
+    setTimeout(() => { countEl.style.color = ''; loadBag(); }, 2500);
+  }
+
+  // Select Region — inject if needed, then close popup so user can draw
   document.getElementById('btn-region').addEventListener('click', async () => {
-    const tab = await getActiveTab();
-    try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
-    } catch (e) {}
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!isInjectable(tab.url)) { notifyBadPage(); return; }
+    try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
     chrome.tabs.sendMessage(tab.id, { action: 'startRegionSelect' });
+    window.close();
   });
 
-  // Visible Area
-  document.getElementById('btn-visible').addEventListener('click', async () => {
-    const tab = await getActiveTab();
+  // Visible Area — capture immediately
+  document.getElementById('btn-visible').addEventListener('click', () => {
     chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
-      if (dataUrl) {
-        bag.push(dataUrl);
-        updateBagUI();
-      }
+      if (dataUrl) chrome.runtime.sendMessage({ action: 'addToBag', dataUrl }, loadBag);
     });
   });
 
-  // Full Page
+  // Full Page — inject if needed, content.js handles the rest
   document.getElementById('btn-fullpage').addEventListener('click', async () => {
-    const tab = await getActiveTab();
-    try {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
-    } catch (e) {}
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!isInjectable(tab.url)) { notifyBadPage(); return; }
+    try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
     chrome.tabs.sendMessage(tab.id, { action: 'startFullPageCapture' });
   });
 
   // Download Bag
-  document.getElementById('btn-download-bag').addEventListener('click', async () => {
-    const dataUrl = await stitchScreenshots();
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `screenshot-bag-${Date.now()}.png`;
-    link.click();
+  document.getElementById('btn-download-bag').addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'getBag' }, async ({ bag }) => {
+      if (!bag.length) return;
+      const images = await loadImages(bag);
+      const dataUrl = stitchImages(images);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `snaptex-bag-${Date.now()}.png`;
+      link.click();
+    });
   });
 
   // Paste Bag
-  document.getElementById('btn-paste-bag').addEventListener('click', async () => {
-    const dataUrl = await stitchScreenshots();
-    const blob = await (await fetch(dataUrl)).blob();
-    try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ]);
-      alert('Bag pasted to clipboard! Paste it into Docs, Word, Slack, etc.');
-    } catch (e) {
-      alert('Failed to copy to clipboard: ' + e.message);
-    }
+  document.getElementById('btn-paste-bag').addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'getBag' }, async ({ bag }) => {
+      if (!bag.length) return;
+      const images = await loadImages(bag);
+      const dataUrl = stitchImages(images);
+      const blob = await (await fetch(dataUrl)).blob();
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        const countEl = document.getElementById('bag-count');
+        countEl.textContent = '✓ Copied to clipboard!';
+        countEl.style.color = '#22c55e';
+        setTimeout(() => { countEl.style.color = ''; loadBag(); }, 2000);
+      } catch (e) {
+        alert('Clipboard write failed: ' + e.message);
+      }
+    });
   });
 
   // Clear Bag
   document.getElementById('btn-clear-bag').addEventListener('click', () => {
-    bag = [];
-    updateBagUI();
+    chrome.runtime.sendMessage({ action: 'clearBag' }, loadBag);
   });
 
   // Equation Converter
@@ -145,5 +157,4 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('equation.html') });
   });
 
-  updateBagUI();
 });
