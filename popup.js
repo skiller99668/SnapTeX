@@ -1,26 +1,11 @@
 // popup.js - Bag screenshot manager
 
-let bag = []; // Local mirror of storage array
+let bag = []; // Store screenshots as data URLs
 
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
-
-// ─── STORAGE SYNCING ─────────────────────────────────────────────
-
-function loadBag() {
-  chrome.storage.local.get({ bag: [] }, (result) => {
-    bag = result.bag;
-    updateBagUI();
-  });
-}
-
-function saveBag() {
-  chrome.storage.local.set({ bag });
-}
-
-// ─── UI UPDATER ──────────────────────────────────────────────────
 
 function updateBagUI() {
   const count = document.getElementById('bag-count');
@@ -45,7 +30,6 @@ function updateBagUI() {
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       bag.splice(idx, 1);
-      saveBag();
       updateBagUI();
     });
     thumb.appendChild(deleteBtn);
@@ -66,6 +50,7 @@ function stitchScreenshots() {
       img.onload = () => {
         loaded++;
         if (loaded === images.length) {
+          // All loaded — stitch them
           const width = images[0].width;
           const totalHeight = images.reduce((sum, img) => sum + img.height, 0);
           
@@ -87,33 +72,43 @@ function stitchScreenshots() {
   });
 }
 
-// ─── EVENT LISTENERS ─────────────────────────────────────────────
+// Listen for screenshots from content.js
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'regionCaptureDone') {
+    bag.push(msg.dataUrl);
+    updateBagUI();
+    sendResponse({ ok: true });
+  }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadBag();
-
-  // Listen for background updates (just in case the popup happens to be open)
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.bag) {
-      bag = changes.bag.newValue || [];
-      updateBagUI();
-    }
-  });
-
   // Select Region
   document.getElementById('btn-region').addEventListener('click', async () => {
     const tab = await getActiveTab();
-    try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+    } catch (e) {}
     chrome.tabs.sendMessage(tab.id, { action: 'startRegionSelect' });
-    window.close(); // Close the popup immediately to allow selection
+  });
+
+  // Visible Area
+  document.getElementById('btn-visible').addEventListener('click', async () => {
+    const tab = await getActiveTab();
+    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+      if (dataUrl) {
+        bag.push(dataUrl);
+        updateBagUI();
+      }
+    });
   });
 
   // Full Page
   document.getElementById('btn-fullpage').addEventListener('click', async () => {
     const tab = await getActiveTab();
-    try { await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }); } catch (e) {}
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+    } catch (e) {}
     chrome.tabs.sendMessage(tab.id, { action: 'startFullPageCapture' });
-    window.close(); // Close popup so it doesn't block the scrolling viewport
   });
 
   // Download Bag
@@ -133,10 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': blob })
       ]);
-      const btn = document.getElementById('btn-paste-bag');
-      const origText = btn.textContent;
-      btn.textContent = 'Copied!';
-      setTimeout(() => btn.textContent = origText, 2000);
+      alert('Bag pasted to clipboard! Paste it into Docs, Word, Slack, etc.');
     } catch (e) {
       alert('Failed to copy to clipboard: ' + e.message);
     }
@@ -145,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clear Bag
   document.getElementById('btn-clear-bag').addEventListener('click', () => {
     bag = [];
-    saveBag();
     updateBagUI();
   });
 
@@ -153,4 +144,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-equation').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('equation.html') });
   });
+
+  updateBagUI();
 });

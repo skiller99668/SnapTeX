@@ -2,451 +2,133 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SnapTeX — Equation Converter</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" id="MathJax-script" async></script>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Equation Converter</title>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #080810; --surface: #10101a; --border: #1e1e35;
-      --accent: #7c6af7; --accent2: #f97316; --text: #e8e8f0;
-      --muted: #5a5a70; --success: #22c55e; --radius: 12px;
+    body {
+      font-family: 'DM Mono', monospace;
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #0f0f14;
+      color: #e0e0e8;
     }
-    body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; min-height: 100vh; }
-    .container { max-width: 800px; margin: 0 auto; padding: 36px 24px 80px; }
 
-    .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 26px;
-      background: linear-gradient(135deg,#a78bfa,#7c6af7); -webkit-background-clip:text;
-      -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:-1px; }
-    .subtitle { font-size:11px; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; margin-top:3px; margin-bottom:28px; }
+    h1 { font-size: 22px; margin-bottom: 4px; background: linear-gradient(135deg, #a78bfa, #7c6af7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    p.sub { color: #666; font-size: 12px; margin-bottom: 28px; }
 
-    .tabs { display:flex; gap:4px; background:var(--surface); border:1px solid var(--border);
-      border-radius:var(--radius); padding:4px; margin-bottom:24px; }
-    .tab { flex:1; padding:9px; border-radius:8px; border:none; background:transparent;
-      color:var(--muted); font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; transition:all .15s; }
-    .tab.active { background:var(--accent); color:#fff; }
+    label { display: block; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
 
-    .panel { display:none; } .panel.active { display:block; }
+    textarea {
+      width: 100%;
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      color: #e0e0e8;
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      padding: 12px;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    textarea:focus { border-color: #7c6af7; }
 
-    label { display:block; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
-    textarea { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-      color:var(--text); font-family:'DM Mono',monospace; font-size:14px; padding:14px;
-      resize:vertical; min-height:90px; outline:none; transition:border-color .15s; line-height:1.6; }
-    textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(124,106,247,.1); }
-    textarea::placeholder { color:var(--muted); }
-    input[type=text] { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px;
-      color:var(--text); font-family:'DM Mono',monospace; font-size:13px; padding:10px 14px; outline:none; }
-    input[type=text]:focus { border-color:var(--accent); }
+    #preview {
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 18px;
+      margin: 14px 0;
+      min-height: 60px;
+      text-align: center;
+      font-size: 22px;
+      color: #e0e0e8;
+    }
 
-    .preview { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
-      padding:20px; margin:14px 0; min-height:72px; display:flex; align-items:center;
-      justify-content:center; font-size:22px; text-align:center; line-height:1.8; }
-    .ph { color:var(--muted); font-size:12px; }
+    .output-label {
+      font-size: 10px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin: 14px 0 5px;
+    }
 
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0; }
-    .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
-    .card-head { padding:9px 14px; background:#13131f; border-bottom:1px solid var(--border);
-      display:flex; align-items:center; justify-content:space-between; }
-    .card-title { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
-    .copy-btn { padding:3px 10px; border-radius:6px; border:1px solid var(--border); background:transparent;
-      color:var(--accent); font-family:'DM Mono',monospace; font-size:10px; cursor:pointer; transition:all .15s; }
-    .copy-btn:hover { background:rgba(124,106,247,.1); border-color:var(--accent); }
-    .copy-btn.ok { color:var(--success); border-color:var(--success); background:rgba(34,197,94,.08); }
-    .card-body { padding:11px 14px; font-size:13px; line-height:1.6; min-height:52px; word-break:break-word; white-space:pre-wrap; }
+    .output-box {
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      font-family: 'Noto Sans', 'DM Mono', monospace;
+      cursor: pointer;
+      position: relative;
+      min-height: 40px;
+      word-break: break-word;
+      transition: border-color .15s;
+    }
+    .output-box:hover { border-color: #7c6af7; }
+    .output-box::after {
+      content: 'click to copy';
+      position: absolute;
+      top: 8px; right: 10px;
+      font-size: 10px;
+      color: #444;
+    }
+    .output-box.copied { border-color: #22c55e; }
+    .output-box.copied::after { content: '✓ copied'; color: #22c55e; }
 
-    .actions { display:flex; gap:10px; margin-top:4px; }
-    .btn { flex:1; padding:11px; border-radius:var(--radius); border:1px solid var(--border);
-      background:var(--surface); color:var(--text); font-family:'DM Mono',monospace;
-      font-size:12px; cursor:pointer; transition:all .15s; }
-    .btn:hover { border-color:var(--accent); background:rgba(124,106,247,.08); }
-    .btn.primary { background:linear-gradient(135deg,#6d59e8,#7c6af7); border-color:#7c6af7; }
-    .btn.primary:hover { box-shadow:0 4px 18px rgba(124,106,247,.3); }
-    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    button {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: #7c6af7;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #8b7cf8; }
 
-    .chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:20px; }
-    .chip { padding:5px 11px; background:var(--surface); border:1px solid var(--border);
-      border-radius:20px; font-size:11px; color:var(--muted); cursor:pointer; transition:all .15s; }
-    .chip:hover { border-color:var(--accent); color:var(--accent); }
-
-    .info { background:rgba(124,106,247,.08); border:1px solid rgba(124,106,247,.2);
-      border-radius:8px; padding:10px 14px; font-size:11px; color:#a78bfa; margin-bottom:18px; line-height:1.6; }
-    .warn { background:rgba(249,115,22,.08); border:1px solid rgba(249,115,22,.2);
-      border-radius:8px; padding:10px 14px; font-size:11px; color:#fb923c; margin-bottom:18px; line-height:1.6; }
-
-    .api-row { display:flex; gap:8px; align-items:center; margin-bottom:16px; }
-    .api-row input { flex:1; }
-    .save-key-btn { padding:9px 14px; border-radius:8px; border:1px solid var(--border);
-      background:var(--surface); color:var(--accent); font-family:'DM Mono',monospace;
-      font-size:11px; cursor:pointer; white-space:nowrap; }
-    .save-key-btn:hover { border-color:var(--accent); background:rgba(124,106,247,.08); }
-
-    .spinner { display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,.2);
-      border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-right:5px; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-
-    .upload-zone { border:2px dashed var(--border); border-radius:var(--radius); padding:36px 20px;
-      text-align:center; cursor:pointer; transition:all .2s; background:var(--surface); margin-bottom:16px; }
-    .upload-zone:hover, .upload-zone.over { border-color:var(--accent); background:rgba(124,106,247,.05); }
-    .upload-text { font-size:12px; color:var(--muted); }
-    #img-preview { max-width:100%; max-height:180px; border-radius:8px; margin-top:10px; border:1px solid var(--border); display:none; }
-    input[type=file] { display:none; }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; }
+    .chip {
+      padding: 5px 11px;
+      background: #18181f;
+      border: 1px solid #2a2a3a;
+      border-radius: 20px;
+      font-size: 11px;
+      color: #666;
+      cursor: pointer;
+    }
+    .chip:hover { border-color: #7c6af7; color: #a78bfa; }
   </style>
 </head>
 <body>
-<div class="container">
-  <div class="logo">SnapTeX</div>
-  <div class="subtitle">Equation Converter — LaTeX → Docs &amp; Word</div>
 
-  <!-- API key row (needed for AI features) -->
-  <div class="warn" id="key-warn">
-    ⚠ AI features (Image OCR &amp; Natural Language) need your Anthropic API key.
-    The LaTeX tab works without one.
-  </div>
-  <div class="api-row">
-    <input type="text" id="api-key-input" placeholder="sk-ant-... (optional, for AI tabs only)" autocomplete="off"/>
-    <button class="save-key-btn" onclick="saveKey()">Save key</button>
-  </div>
+<h1>Equation Converter</h1>
+<p class="sub">LaTeX → Unicode you can paste into Google Docs or Word</p>
 
-  <div class="tabs">
-    <button class="tab active" data-panel="latex">LaTeX input</button>
-    <button class="tab" data-panel="image">Image / OCR</button>
-    <button class="tab" data-panel="natural">Natural language</button>
-  </div>
+<label>LaTeX input</label>
+<textarea id="input" placeholder="e.g.  \frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
 
-  <!-- ── LaTeX tab ───────────────────────────────────────── -->
-  <div class="panel active" id="panel-latex">
-    <div class="info">Type or paste LaTeX below. All conversion happens locally — no API key needed.</div>
-    <label>LaTeX equation</label>
-    <textarea id="latex-in" placeholder="e.g. \frac{-b \pm \sqrt{b^2-4ac}}{2a}"></textarea>
-    <label style="margin-top:14px">Live preview</label>
-    <div class="preview" id="latex-preview"><span class="ph">Renders here…</span></div>
-    <div class="grid">
-      <div class="card">
-        <div class="card-head"><span class="card-title">Unicode (Docs / Word)</span><button class="copy-btn" data-id="out-unicode">Copy</button></div>
-        <div class="card-body" id="out-unicode">—</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><span class="card-title">Clean LaTeX</span><button class="copy-btn" data-id="out-clean">Copy</button></div>
-        <div class="card-body" id="out-clean">—</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><span class="card-title">Google Docs (Insert → Equation)</span><button class="copy-btn" data-id="out-gdocs">Copy</button></div>
-        <div class="card-body" id="out-gdocs">—</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><span class="card-title">Word (Alt+= then paste)</span><button class="copy-btn" data-id="out-word">Copy</button></div>
-        <div class="card-body" id="out-word">—</div>
-      </div>
-    </div>
-    <div class="actions">
-      <button class="btn" onclick="clearLatex()">Clear</button>
-      <button class="btn primary" onclick="convertLatex()">Convert →</button>
-    </div>
-    <div class="chips" id="chips"></div>
-  </div>
+<button id="btn-convert">Convert →</button>
 
-  <!-- ── Image tab ───────────────────────────────────────── -->
-  <div class="panel" id="panel-image">
-    <div class="info">Upload a screenshot or photo containing a math equation. Requires your Anthropic API key above.</div>
-    <div class="upload-zone" id="upload-zone">
-      <div style="font-size:28px;margin-bottom:8px">📷</div>
-      <div class="upload-text">Drop image here or click to upload</div>
-      <img id="img-preview" alt=""/>
-    </div>
-    <input type="file" id="file-in" accept="image/*"/>
-    <div id="ocr-status" style="display:none;text-align:center;font-size:12px;color:var(--muted);padding:10px"></div>
-    <div class="grid" id="ocr-grid" style="display:none">
-      <div class="card">
-        <div class="card-head"><span class="card-title">Detected LaTeX</span><button class="copy-btn" data-id="ocr-latex">Copy</button></div>
-        <div class="card-body" id="ocr-latex">—</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><span class="card-title">Unicode (Docs / Word)</span><button class="copy-btn" data-id="ocr-unicode">Copy</button></div>
-        <div class="card-body" id="ocr-unicode">—</div>
-      </div>
-    </div>
-    <div class="preview" id="ocr-preview" style="display:none"><span class="ph">Detected equation renders here…</span></div>
-    <button class="btn primary" id="ocr-btn" style="width:100%;margin-top:6px" onclick="runOCR()" disabled>Extract Equation</button>
-  </div>
+<br><br>
+<label>Live preview</label>
+<div id="preview" style="color:#444">Type something above…</div>
 
-  <!-- ── Natural language tab ────────────────────────────── -->
-  <div class="panel" id="panel-natural">
-    <div class="info">Describe math in plain English. Requires your Anthropic API key above.</div>
-    <label>Describe your equation</label>
-    <textarea id="nat-in" placeholder="e.g. The quadratic formula&#10;e.g. Integral from 0 to infinity of e to the negative x squared&#10;e.g. Bayes theorem"></textarea>
-    <div class="preview" id="nat-preview"><span class="ph">Equation renders here…</span></div>
-    <div class="grid" id="nat-grid" style="display:none">
-      <div class="card">
-        <div class="card-head"><span class="card-title">Generated LaTeX</span><button class="copy-btn" data-id="nat-latex">Copy</button></div>
-        <div class="card-body" id="nat-latex">—</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><span class="card-title">Unicode</span><button class="copy-btn" data-id="nat-unicode">Copy</button></div>
-        <div class="card-body" id="nat-unicode">—</div>
-      </div>
-    </div>
-    <div class="actions" style="margin-top:14px">
-      <button class="btn" onclick="document.getElementById('nat-in').value='';document.getElementById('nat-preview').innerHTML='<span class=ph>Equation renders here…</span>';document.getElementById('nat-grid').style.display='none'">Clear</button>
-      <button class="btn primary" id="nat-btn" onclick="runNatural()">Convert →</button>
-    </div>
-  </div>
-</div>
+<div class="output-label">Unicode — paste anywhere (Docs, Word, Slack…)</div>
+<div class="output-box" id="out-unicode">—</div>
 
-<script>
-// ── API key ──────────────────────────────────────────────────────────
-function getKey() { return localStorage.getItem('snaptex_api_key') || ''; }
-function saveKey() {
-  const k = document.getElementById('api-key-input').value.trim();
-  if (!k) return alert('Paste your API key first.');
-  localStorage.setItem('snaptex_api_key', k);
-  document.getElementById('key-warn').style.display = 'none';
-  document.getElementById('api-key-input').value = '••••••••' + k.slice(-4);
-  alert('Key saved!');
-}
-(function() {
-  const k = getKey();
-  if (k) {
-    document.getElementById('key-warn').style.display = 'none';
-    document.getElementById('api-key-input').value = '••••••••' + k.slice(-4);
-  }
-})();
+<div class="output-label">Clean LaTeX — paste into Google Docs equation editor</div>
+<div class="output-box" id="out-clean">—</div>
 
-// ── Tabs ─────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    document.getElementById('panel-' + t.dataset.panel).classList.add('active');
-  });
-});
+<div class="chips" id="chips"></div>
 
-// ── Copy buttons ─────────────────────────────────────────────────────
-document.addEventListener('click', e => {
-  const btn = e.target.closest('.copy-btn');
-  if (!btn) return;
-  const el = document.getElementById(btn.dataset.id);
-  if (!el || el.textContent === '—') return;
-  navigator.clipboard.writeText(el.textContent).then(() => {
-    btn.textContent = '✓ Copied'; btn.classList.add('ok');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('ok'); }, 1800);
-  });
-});
-
-// ── LaTeX → Unicode conversion ───────────────────────────────────────
-const CMD = {
-  '\\alpha':'α','\\beta':'β','\\gamma':'γ','\\delta':'δ','\\epsilon':'ε',
-  '\\varepsilon':'ε','\\zeta':'ζ','\\eta':'η','\\theta':'θ','\\iota':'ι',
-  '\\kappa':'κ','\\lambda':'λ','\\mu':'μ','\\nu':'ν','\\xi':'ξ','\\pi':'π',
-  '\\rho':'ρ','\\sigma':'σ','\\tau':'τ','\\upsilon':'υ','\\phi':'φ','\\varphi':'φ',
-  '\\chi':'χ','\\psi':'ψ','\\omega':'ω','\\Gamma':'Γ','\\Delta':'Δ','\\Theta':'Θ',
-  '\\Lambda':'Λ','\\Xi':'Ξ','\\Pi':'Π','\\Sigma':'Σ','\\Upsilon':'Υ','\\Phi':'Φ',
-  '\\Psi':'Ψ','\\Omega':'Ω','\\pm':'±','\\mp':'∓','\\times':'×','\\div':'÷',
-  '\\cdot':'·','\\leq':'≤','\\geq':'≥','\\neq':'≠','\\approx':'≈','\\equiv':'≡',
-  '\\sim':'∼','\\ll':'≪','\\gg':'≫','\\in':'∈','\\notin':'∉','\\cup':'∪',
-  '\\cap':'∩','\\emptyset':'∅','\\infty':'∞','\\partial':'∂','\\nabla':'∇',
-  '\\forall':'∀','\\exists':'∃','\\neg':'¬','\\wedge':'∧','\\vee':'∨',
-  '\\oplus':'⊕','\\otimes':'⊗','\\rightarrow':'→','\\leftarrow':'←',
-  '\\Rightarrow':'⇒','\\Leftarrow':'⇐','\\Leftrightarrow':'⇔','\\leftrightarrow':'↔',
-  '\\cdots':'⋯','\\ldots':'…','\\sum':'Σ','\\prod':'Π','\\int':'∫','\\oint':'∮',
-  '\\lim':'lim','\\sin':'sin','\\cos':'cos','\\tan':'tan','\\ln':'ln','\\log':'log',
-  '\\exp':'exp','\\max':'max','\\min':'min','\\langle':'⟨','\\rangle':'⟩',
-  '\\lfloor':'⌊','\\rfloor':'⌋','\\lceil':'⌈','\\rceil':'⌉',
-  '\\sqrt':'√','\\vec':'','\\hat':'','\\bar':'','\\tilde':'',
-  '\\left':'','\\right':'','\\text':'','\\mathbb':'','\\mathbf':'',
-  '\\mathrm':'','\\mathcal':'',
-};
-const SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',
-  '+':'⁺','-':'⁻','=':'⁼','(':'⁽',')':'⁾','n':'ⁿ','i':'ⁱ','a':'ᵃ','b':'ᵇ','c':'ᶜ',
-  'e':'ᵉ','x':'ˣ','T':'ᵀ'};
-const SUB = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
-  '+':'₊','-':'₋','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ','n':'ₙ','i':'ᵢ'};
-
-function toSup(s){ return s.split('').map(c=>SUP[c]||c).join(''); }
-function toSub(s){ return s.split('').map(c=>SUB[c]||c).join(''); }
-
-function latexToUnicode(raw) {
-  let s = raw.trim().replace(/^\$\$?|\$\$?$/g,'').replace(/^\\\[|\\\]$/g,'').trim();
-  s = s.replace(/\\begin\{[^}]*\}|\\end\{[^}]*\}/g,'');
-  let prev;
-  // frac
-  do { prev=s; s=s.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g,'($1)/($2)'); } while(s!==prev);
-  // sqrt
-  s=s.replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g,'$1√($2)');
-  s=s.replace(/\\sqrt\{([^{}]*)\}/g,'√($1)');
-  s=s.replace(/\\sqrt(?!\{)/g,'√');
-  // binom
-  s=s.replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g,'C($1,$2)');
-  // superscripts
-  do { prev=s; s=s.replace(/\^\{([^{}]+)\}/g,(_,x)=>toSup(x)); } while(s!==prev);
-  s=s.replace(/\^([A-Za-z0-9])/g,(_,c)=>toSup(c));
-  // subscripts
-  do { prev=s; s=s.replace(/_\{([^{}]+)\}/g,(_,x)=>toSub(x)); } while(s!==prev);
-  s=s.replace(/_([A-Za-z0-9])/g,(_,c)=>toSub(c));
-  // commands
-  Object.entries(CMD).sort((a,b)=>b[0].length-a[0].length).forEach(([k,v])=>{
-    s=s.replace(new RegExp(k.replace(/\\/g,'\\\\')+'(?![a-zA-Z])','g'),v);
-  });
-  s=s.replace(/[{}]/g,'').replace(/\s+/g,' ').trim();
-  return s;
-}
-
-function cleanLatex(s){ return s.trim().replace(/^\$\$?|\$\$?$/g,'').trim(); }
-
-// ── LaTeX tab logic ───────────────────────────────────────────────────
-const latexIn = document.getElementById('latex-in');
-const latexPreview = document.getElementById('latex-preview');
-let previewTimer;
-
-latexIn.addEventListener('input', ()=>{
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(renderPreview, 450);
-});
-
-function renderPreview() {
-  const v = latexIn.value.trim();
-  if (!v) { latexPreview.innerHTML='<span class="ph">Renders here…</span>'; return; }
-  latexPreview.innerHTML = `\\(${cleanLatex(v)}\\)`;
-  if (window.MathJax) MathJax.typesetPromise([latexPreview]).catch(()=>{
-    latexPreview.innerHTML='<span class="ph" style="color:#ef4444">Invalid LaTeX — check syntax</span>';
-  });
-}
-
-function convertLatex() {
-  const v = latexIn.value.trim();
-  if (!v) return;
-  const cl = cleanLatex(v);
-  const uni = latexToUnicode(v);
-  document.getElementById('out-unicode').textContent = uni;
-  document.getElementById('out-clean').textContent = cl;
-  document.getElementById('out-gdocs').textContent = cl;  // paste into Google Docs equation editor
-  document.getElementById('out-word').textContent = cl;   // Alt+= in Word, then paste
-}
-
-function clearLatex() {
-  latexIn.value='';
-  latexPreview.innerHTML='<span class="ph">Renders here…</span>';
-  ['out-unicode','out-clean','out-gdocs','out-word'].forEach(id=>document.getElementById(id).textContent='—');
-}
-
-// Quick examples
-const EXAMPLES = [
-  {label:'Quadratic formula', latex:'\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}'},
-  {label:'E = mc²', latex:'E = mc^2'},
-  {label:'Euler\'s identity', latex:'e^{i\\pi} + 1 = 0'},
-  {label:'Gaussian integral', latex:'\\int_0^\\infty e^{-x^2}dx = \\frac{\\sqrt{\\pi}}{2}'},
-  {label:'Basel problem', latex:'\\sum_{n=1}^{\\infty}\\frac{1}{n^2}=\\frac{\\pi^2}{6}'},
-  {label:'Maxwell (Gauss)', latex:'\\nabla \\cdot \\vec{E} = \\frac{\\rho}{\\varepsilon_0}'},
-  {label:'Binomial coeff', latex:'\\binom{n}{k}=\\frac{n!}{k!(n-k)!}'},
-  {label:'Newton\'s 2nd', latex:'\\vec{F}=m\\vec{a}'},
-];
-const chipsEl = document.getElementById('chips');
-EXAMPLES.forEach(ex=>{
-  const c = document.createElement('div');
-  c.className='chip'; c.textContent=ex.label;
-  c.onclick=()=>{ latexIn.value=ex.latex; renderPreview(); convertLatex(); };
-  chipsEl.appendChild(c);
-});
-
-// ── Image OCR ─────────────────────────────────────────────────────────
-const uploadZone = document.getElementById('upload-zone');
-const fileIn = document.getElementById('file-in');
-let selectedFile = null;
-
-uploadZone.onclick = ()=>fileIn.click();
-uploadZone.ondragover = e=>{ e.preventDefault(); uploadZone.classList.add('over'); };
-uploadZone.ondragleave = ()=>uploadZone.classList.remove('over');
-uploadZone.ondrop = e=>{ e.preventDefault(); uploadZone.classList.remove('over'); handleFile(e.dataTransfer.files[0]); };
-fileIn.onchange = ()=>handleFile(fileIn.files[0]);
-
-function handleFile(file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  selectedFile = file;
-  const r = new FileReader();
-  r.onload = e=>{ const img=document.getElementById('img-preview'); img.src=e.target.result; img.style.display='block'; };
-  r.readAsDataURL(file);
-  document.getElementById('ocr-btn').disabled = false;
-}
-
-async function runOCR() {
-  const key = getKey();
-  if (!key) { alert('Paste and save your Anthropic API key at the top first.'); return; }
-  if (!selectedFile) return;
-
-  const status = document.getElementById('ocr-status');
-  status.style.display='block';
-  status.innerHTML='<span class="spinner"></span>Analysing image…';
-  document.getElementById('ocr-btn').disabled=true;
-
-  const r = new FileReader();
-  r.onload = async e=>{
-    const b64 = e.target.result.split(',')[1];
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:800,
-          messages:[{role:'user',content:[
-            {type:'image',source:{type:'base64',media_type:selectedFile.type,data:b64}},
-            {type:'text',text:'Extract the math equation from this image. Return ONLY raw JSON, no markdown:\n{"latex":"..."}'}
-          ]}]
-        })
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error?.message || resp.status);
-      const txt = data.content.map(x=>x.text||'').join('');
-      let latex='';
-      try { latex = JSON.parse(txt.replace(/```json|```/g,'').trim()).latex; } catch{ latex=txt; }
-      document.getElementById('ocr-latex').textContent=latex;
-      document.getElementById('ocr-unicode').textContent=latexToUnicode(latex);
-      document.getElementById('ocr-grid').style.display='grid';
-      const prev=document.getElementById('ocr-preview');
-      prev.style.display='flex'; prev.innerHTML=`\\(${latex}\\)`;
-      if(window.MathJax) MathJax.typesetPromise([prev]);
-      status.innerHTML='✓ Done'; status.style.color='var(--success)';
-    } catch(err) {
-      status.innerHTML='✗ Error: '+err.message; status.style.color='#ef4444';
-    }
-    document.getElementById('ocr-btn').disabled=false;
-  };
-  r.readAsDataURL(selectedFile);
-}
-
-// ── Natural language ──────────────────────────────────────────────────
-async function runNatural() {
-  const key = getKey();
-  if (!key) { alert('Paste and save your Anthropic API key at the top first.'); return; }
-  const v = document.getElementById('nat-in').value.trim();
-  if (!v) return;
-  const btn = document.getElementById('nat-btn');
-  btn.innerHTML='<span class="spinner"></span>Converting…'; btn.disabled=true;
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514', max_tokens:600,
-        messages:[{role:'user',content:`Convert to LaTeX. Return ONLY raw JSON, no markdown:\n{"latex":"..."}\n\nInput: "${v}"`}]
-      })
-    });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error?.message || resp.status);
-    const txt = data.content.map(x=>x.text||'').join('');
-    let latex='';
-    try { latex = JSON.parse(txt.replace(/```json|```/g,'').trim()).latex; } catch{ latex=txt; }
-    document.getElementById('nat-latex').textContent=latex;
-    document.getElementById('nat-unicode').textContent=latexToUnicode(latex);
-    document.getElementById('nat-grid').style.display='grid';
-    const prev=document.getElementById('nat-preview');
-    prev.innerHTML=`\\(${latex}\\)`;
-    if(window.MathJax) MathJax.typesetPromise([prev]);
-  } catch(err) {
-    alert('Error: '+err.message);
-  }
-  btn.innerHTML='Convert →'; btn.disabled=false;
-}
-</script>
+<script src="equation.js"></script>
 </body>
 </html>
