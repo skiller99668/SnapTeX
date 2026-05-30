@@ -2,6 +2,16 @@
 
 A Chrome extension that combines a **multi-shot screenshot tool** with a **LaTeX-to-Unicode equation converter**. Capture screenshots into a "bag," stitch them into a single tall image, and convert LaTeX into paste-ready Unicode for Google Docs, Word, or Slack — all without leaving the browser.
 
+## Motivation
+
+Both tools were born out of the same frustration: **AI-assisted workflows are constantly interrupted by small, repetitive friction.**
+
+When working on assignments with AI tools, taking screenshots becomes tedious fast — you're constantly switching windows, and if you're on a free plan you quickly hit upload limits. SnapTeX solves this with scrollable full-page captures and a screenshot bag, so you can collect exactly what you need in one pass and move on.
+
+The equation converter came from the same place. AI outputs math in LaTeX (`\frac{-b \pm \sqrt{b^2-4ac}}{2a}`), but when writing a report in Google Docs or Word that's completely useless — you either paste unreadable symbols or spend time manually retyping it. SnapTeX converts it instantly into clean Unicode (`(-b ± √(b²-4ac))/(2a)`) you can paste anywhere.
+
+The two tools live together in one extension because the problem is the same: reducing the gap between what AI produces and what you can actually use.
+
 ## Features
 
 ### Screenshot Bag
